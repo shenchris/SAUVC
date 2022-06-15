@@ -49,13 +49,13 @@ def main():
 
     # X0 denoted initial System state
     # Question: is it better to read imu accel and put into init state?
-    X0 = np.array([[0],  # x_position
+    X0 = np.array([[0],  # x_position (global)
                    [0],  # y_position
                    [0],  # z_position
-                   [1],  # x_velocity
+                   [1],  # x_velocity (global)
                    [0],  # y_velocity
                    [0],  # z_velocity
-                   [0],  # x_accel
+                   [0],  # x_accel    (global)
                    [0],  # y_accel
                    [0]])  # z_accel
 

@@ -7,8 +7,9 @@
 - numpy
 
 ## To Be Completed
-- Modify Kp(proportional gain), Kd(derivative), and Ki(integral gain) by testing.
+- Modify self.Kp(proportional gain), self.Kd(derivative), and self.Ki(integral gain) in init by testing.
 - Complete load_z_position & load_target_height function, z position should be load from localization
+- Modify self.max_output in init and output z_controller.output to thruster
 - x, y position, and yaw angle pid controll to follow specific trajectories
 
 ## Learning Resource
