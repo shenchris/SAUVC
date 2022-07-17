@@ -5,13 +5,16 @@
   - read_imu.py: Using RTIMU Library to filter & Calibrate imu data
   - localization.py: main function perform state estimate by Kalman filter
 * Extend_Kalman_Filter
-  - main.py: Unfinished QAQ
+    - find_jacobian.py: using sympy to get Jacobian matrix for ekf_imu
+    - ekf_imu.py: using imu data to calculate local velocity, ignored roll and pitch. 
+    - ekf_fusion.py: fusing camera and data from ekf_imu
 
 ## Library
 - numpy
+- sympy
 
 ## To Be Completed
-- Extend_Kalman_Filter
+- ekf_fusion.py
 
 
 ## Learning Resource
