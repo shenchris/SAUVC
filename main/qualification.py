@@ -31,6 +31,8 @@ def main():
     try:
         # hold altitude(depth)
         set_target_depth(-0.5)
+        # may need to dive by our self if set_target_depth not working
+        
         msg = master.recv_match()
         if msg.get_type() == 'ATTITUDE':
             # hold angle base on startup
@@ -107,12 +109,21 @@ def set_target_attitude(roll, pitch, yaw):
 
 def motion(data):
     # If camara doesn't detect qualification gate
-    if data == 1:
+    if not data.gate_detect and not data.gate_pass:
         send_manual_control(1000, 0, 0, 0)
-    else:
+    elif data.gate.detect:
         # base on distance between center of camara and center of gate give force to y axis
         # send_manual_control(1000, data.x_position-center of camara, 0, 0)
         send_manual_control(1000, 0, 0, 0)
+    else: # data.gate.detect ==false and data.gate_pass == true
+        # Disarm
+        time.sleep(3)
+        master.arducopter_disarm()
+        print("Waiting for the vehicle to disarm")
+        # Wait for disarm
+        master.motors_disarmed_wait()
+        print('Disarmed!')
+
 
 
 if __name__ == '__main__':
