@@ -10,7 +10,7 @@ from pymavlink.quaternion import QuaternionBase  # Imports for attitude
 Camera_topic = ".."
 
 
-def main():
+def task2(direction, seconds):
     # Create the connectionc
     global master, boot_time
     master = mavutil.mavlink_connection("/dev/ttyACM0", baud=115200)
@@ -108,10 +108,23 @@ def set_target_attitude(roll, pitch, yaw):
     )
 
 
+#data.front_blue_drum_detect
+#data.front_red_drum_detect
+#data.bottom_blue_drum_detect
+#data.bottom_red_drum_detect
+#data.bottom_blue_drum_area
+
 def motion(data):
-    if data.gate_detect:
-        # send_manual_control(1000, np.clip(math.floor((data.x_position - center of camara) * P_gain), y_force_min, y_force_max), 0, 0)
+    if data.bottom_blue_drum_detect:
+        while data.bottom_blue_drum_area < 80:
+            send_manual_control(0, 0, 0, 0)
+
+
+
+def task1():
+    return 1,1
 
 
 if __name__ == '__main__':
-    main()
+    direction, seconds = task1()
+    task2(direction,seconds)

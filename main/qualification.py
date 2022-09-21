@@ -6,12 +6,8 @@ import math
 from pymavlink import mavutil
 from pymavlink.quaternion import QuaternionBase  # Imports for attitude
 
-
-# Camera_topic =
-# P_gain =
-# y_force_min =
-# y_force_max =
-
+Camera_topic = ""
+Force_foward = 500
 
 def main():
     # Create the connectionc
@@ -112,12 +108,9 @@ def set_target_attitude(roll, pitch, yaw):
 
 
 def motion(data):
-    if data.gate.detect: # warn about when data.gate.detect == true and data.gate_pass == true
-        # base on distance between center of camara and center of gate give force to y_axis
-        ## send_manual_control(1000, np.clip(math.floor((data.x_position - center of camara) * P_gain), y_force_min, y_force_max), 0, 0)
-    elif not data.gate_detect and not data.gate_pass:
-        send_manual_control(1000, 0, 0, 0)
-    else:  # data.gate.detect == false and data.gate_pass == true
+    if not data.gate_pass:
+        send_manual_control(Force_foward, data.force, 0, 0)
+    else:
         # Disarm
         time.sleep(3)
         master.arducopter_disarm()
