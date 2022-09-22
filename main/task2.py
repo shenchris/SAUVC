@@ -18,7 +18,7 @@ Speed_move_forward = 400
 
 # Set
 Task2_Camera_topic = ".."
-moving_right = True
+moving_right = True  # False mean moving_left
 task2_finish = False
 
 
@@ -26,68 +26,91 @@ def task1():
     return 1, 2
 
 
-# based on task1 return
+# based on task1 return, move auv from gate to top_left_corner which should around left and before drum area
 def move_to_top_left_corner(data):
-    while not data.detect:
-        if time.time() - boot_time < (Time_to_left_corner - seconds_from_task1):
-            send_manual_control(0, -Speed_translation, 0, 0)
-        elif (Time_to_left_corner - seconds_from_task1) < time.time() - boot_time < (
-                Time_to_left_corner - seconds_from_task1 + Time_to_top_corner):
-            send_manual_control(Speed_move_forward, 0, 0, 0)
+    # break when ever detected drum
+    while not data.front_detect and not data.bottom_detect:
+        # move left base on task1 return
+        if (time.time() - task2_start_time) < (Time_to_left_corner - x_second_from_task1):
+            send_manual_control(0, -Speed_translation, 500, 0)
+        # move forward base on task1 return
+        elif (Time_to_left_corner - x_second_from_task1) < time.time() - task2_start_time < (
+                (Time_to_left_corner - x_second_from_task1) + (Time_to_top_corner - y_second_from_task1)):
+            send_manual_control(Speed_move_forward, 0, 500, 0)
 
 
+# check detect_flag while moving
 def wait_and_check_detect_flag(data, second):
-    for i in range(second*1000):
-        if data.detect:
+    for i in range(second * 1000):
+        if data.front_detect or data.bottom_detect:
             break
         else:
             time.sleep(0.001)
 
 
-def meandeling(data):
-    while not data.detect:
-        send_manual_control(0,400,0,0)
-        wait_and_check_detect_flag()
-        if data.detect:
+# after arrive top left corner, snake_motion to find drum, loop: right -> forward -> left -> forward
+def snake_motion(data):
+    while not data.front_detect or not data.bottom_detect:
+        send_manual_control(0, Speed_translation, 500, 0)
+        wait_and_check_detect_flag(data, Time_to_left_corner + Time_to_Right_corner)
+        if data.front_detect or data.bottom_detect:
             break
-        send_manual_control(400,0,0,0)
-        wait_and_check_detect_flag()
-        if data.detect:
+        send_manual_control(Speed_move_forward, 0, 500, 0)
+        wait_and_check_detect_flag(data, 3)
+        if data.front_detect or data.bottom_detect:
             break
-        send_manual_control(0,-400,0,0)
-        wait_and_check_detect_flag()
-        if data.detect:
+        send_manual_control(0, -Speed_translation, 500, 0)
+        wait_and_check_detect_flag(data, Time_to_left_corner + Time_to_Right_corner)
+        if data.front_detect or data.bottom_detect:
             break
-        send_manual_control(400,0,0,0)
-        wait_and_check_detect_flag()
-        if data.detect:
+        send_manual_control(Speed_move_forward, 0, 0, 0)
+        wait_and_check_detect_flag(data, 3)
+        if data.front_detect or data.bottom_detect:
             break
 
+# after snake_motion terminate by front camera detected
+# use front camera to locate and move forward until bottom camera detected
+# if both front and bottom detect don't detect, just move forward
+def front_to_bottom(data):
+    while True:
+        if data.bottom_detect:
+            break
+        elif data.front_detect:
+            send_manual_control(0, data.front_y_force, 500, 0)
+        else:
+            send_manual_control(Speed_move_forward, 0, 500, 0)
 
-
-# data.detected
-# data.detecting
 
 def motion(data):
     move_to_top_left_corner(data)
-    meandeling(data)
-    while not task2_finish:
-        while data.detected or data.detecting:
-            if data.front_detect:
-                send_manual_control(Speed_move_forward, data.force, 0, 0)
-                data.detected = True
-            elif data.bottom_detect:
-                data.detected = True
-        else:
+    snake_motion(data)
+    front_to_bottom(data)
 
+    # start when bottom camera detected
+    while not task2_finish:
+        # first move : right
+        losing_detect = False
+        while True:
+            if data.bottom_detect:
+                send_manual_control(data.bottom_x_force, Speed_translation, 500, 0)
+            elif data.front_detect: # should not happen
+                send_manual_control(Speed_move_forward, data.bottom_y_force, 500, 0)
+            else:
+                send_manual_control(Speed_move_forward, data.front_detect, 500, 0)
+
+    print("Task2 finished, floating up")
+    send_manual_control(0, 0, 1000, 0)
+    time.sleep(8)
+    master.arducopter_disarm()
+    master.motors_disarmed_wait()
+    print('Disarmed!')
 
 
 def task2(x_seconds_from_task1, y_second_from_task1):
-    # Create the connectionc
-    task2_start_time = time.time()
-    global master, boot_time
+    # Create the connection
+    global master, task2_start_time, boot_time
     master = mavutil.mavlink_connection("/dev/ttyACM0", baud=115200)
-    boot_time = time.time()
+    task2_start_time = time.time()
     # Wait a heartbeat before sending commands
     master.wait_heartbeat()
 
@@ -182,5 +205,6 @@ def set_target_attitude(roll, pitch, yaw):
 
 
 if __name__ == '__main__':
-    seconds_from_task1 = task1()
-    task2(seconds_from_task1)  # seconds > 0 : move right, seconds < 0 : move left
+    # x_second_from_task1 > 0 : move left, x_second_from_task1 < 0 : move right
+    x_second_from_task1, y_second_from_task1 = task1()
+    task2(x_second_from_task1, y_second_from_task1)

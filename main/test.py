@@ -1,9 +1,10 @@
 import time
 import math
+import threading
 from pymavlink import mavutil
 from pymavlink.quaternion import QuaternionBase
 
-target_depth = -1
+target_depth = 1050
 
 # motion for testing
 x, y, z, r = 0, 1000, 500, 0
@@ -78,28 +79,45 @@ master = mavutil.mavlink_connection("/dev/ttyACM0", baud=115200)
 boot_time = time.time()
 # Wait a heartbeat before sending commands
 master.wait_heartbeat()
+print("connect")
 
 # arm ArduSub autopilot and wait until confirmed
 master.arducopter_arm()
 master.motors_armed_wait()
+print("arm")
 
 # set the desired operating mode
 DEPTH_HOLD = 'ALT_HOLD'
 DEPTH_HOLD_MODE = master.mode_mapping()[DEPTH_HOLD]
 while not master.wait_heartbeat().custom_mode == DEPTH_HOLD_MODE:
     master.set_mode(DEPTH_HOLD)
+print("set mode")
+
+
+def thread_function():
+    global pressure, yaw
+    while True:
+        try:
+            msg = master.recv_match(type=['SCALED_PRESSURE2', 'ATTITUDE'], blocking=True).to_dict()
+            if msg['mavpackettype'] == 'SCALED_PRESSURE2':
+                pressure = msg['press_abs']
+            elif msg['mavpackettype'] == 'ATTITUDE':
+                yaw = msg['yaw']
+        except KeyboardInterrupt:
+            master.arducopter_disarm()
+            master.motors_disarmed_wait()
+
 
 ## start
-time.sleep(1)
+global pressure, yaw
+pressure = None
+yaw = None
+x = threading.Thread(target=thread_function, blocking=True)
+x.start()
+time.sleep(0.5)
 
 try:
-    while True:
-        msg = master.recv_match()
-        if not msg:
-            continue
-        if msg.get_type() == 'ATTITUDE' and msg.yaw != 0:
-            target_yaw = msg.yaw
-            break
+    target_yaw = yaw
     while target_yaw != 0:
         print(f'set_target_attitude: {target_yaw}')
         set_target_attitude(0, 0, target_yaw)
@@ -118,14 +136,17 @@ try:
 
 except KeyboardInterrupt:
     # Disarm
-    send_manual_control(0, 0, 500, 0)  # wait 3 sec to disarm
+    send_manual_control(0, 0, 1000, 0)  # wait 3 sec to disarm
     time.sleep(3)
+    print("Floating up")
     master.arducopter_disarm()
-    print("Waiting for the vehicle to disarm")
-    # Wait for disarm
     master.motors_disarmed_wait()
     print('Disarmed!')
 
 # clean up (disarm) at the end
+send_manual_control(0, 0, 1000, 0)  # wait 3 sec to disarm
+time.sleep(3)
+print("Floating up")
 master.arducopter_disarm()
 master.motors_disarmed_wait()
+print('Disarmed!')
