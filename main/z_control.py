@@ -9,10 +9,11 @@ class PID:
 
     def __init__(self):
         # Todo: testing & change to suitable value
-        self.Kp = 100
-        self.Ki = 30
-        self.Kd = 30
-        self.max_output = 1000
+        # PI > PID > PD > P
+        self.Kp = 10
+        self.Ki = 0.1
+        self.Kd = 1
+        self.max_output = 500
         # self.ITerm_max = 10
         self.delta_time = 0.01  # 100Hz
 
@@ -54,13 +55,8 @@ class PID:
         self.target_height = goal
 
 
-# Todo: finish loading function for target height & sensor input from kalman filter
-def load_z_position():
-    return 0
-
-
 def load_target_height():
-    return 1000 + -1 * 100
+    return 1050
 
 
 def send_manual_control(x, y, z, r):
@@ -99,7 +95,7 @@ if __name__ == '__main__':
             msg = master.recv_match()
             if not msg:
                 continue
-            if msg.get_type() == 'SCALED_PRESSURE2':
+            if msg.get_type() == 'SCALED_PRESSURE2' and msg.press_abs != 0:
                 z = msg.press_abs
 
         target_height = load_target_height()
@@ -107,7 +103,7 @@ if __name__ == '__main__':
         z_controller.update(z)
 
         print(500 + z_controller.output)
-        send_manual_control(0, 0 , 500+z_controller.output, 0)
+        send_manual_control(0, 0, 500 - z_controller.output, 0)
 
     except KeyboardInterrupt:
         # Disarm

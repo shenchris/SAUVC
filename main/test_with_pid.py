@@ -2,13 +2,67 @@ import time
 import math
 from pymavlink import mavutil
 from pymavlink.quaternion import QuaternionBase
-
-target_depth = -1
+import numpy as np
+import os
 
 # motion for testing
 x, y, z, r = 0, 1000, 500, 0
 
 sleep = 3
+
+
+class PID:
+
+    def __init__(self):
+        # Todo: testing & change to suitable value
+        # PI > PID > PD > P
+        self.Kp = 10
+        self.Ki = 0.1
+        self.Kd = 1
+        self.max_output = 500
+        # self.ITerm_max = 10
+        self.delta_time = 0.01  # 100Hz
+
+        # init
+        self.target_height = 0.0
+        self.PTerm = 0.0
+        self.ITerm = 0.0
+        self.DTerm = 0.0
+        self.last_error = 0.0
+        self.int_error = 0.0
+        self.output = 0.0
+
+    def clear(self):
+        self.target_height = 0.0
+        self.PTerm = 0.0
+        self.ITerm = 0.0
+        self.DTerm = 0.0
+        self.last_error = 0.0
+        self.int_error = 0.0
+        self.output = 0.0
+
+    # Calculate P, I ,D , and output thruster command
+    def update(self, feedback_value):
+        error = self.target_height - feedback_value
+        delta_time = self.delta_time
+        delta_error = error - self.last_error
+
+        self.PTerm = self.Kp * error
+        self.ITerm += error * delta_time
+
+        self.DTerm = delta_error / delta_time
+
+        # Remember last time and last error for next calculation
+        self.last_error = error
+        self.output = np.clip(self.PTerm + (self.Ki * self.ITerm) + (self.Kd * self.DTerm), -self.max_output,
+                              self.max_output)
+
+    def set_target_height(self, goal):
+        self.target_height = goal
+
+
+def load_target_height():
+    return 1050
 
 
 def set_target_depth(depth):
@@ -90,8 +144,6 @@ while not master.wait_heartbeat().custom_mode == DEPTH_HOLD_MODE:
     master.set_mode(DEPTH_HOLD)
 
 ## start
-time.sleep(1)
-
 try:
     while True:
         msg = master.recv_match()
@@ -99,7 +151,8 @@ try:
             continue
         if msg.get_type() == 'ATTITUDE' and msg.yaw != 0:
             target_yaw = msg.yaw
-            break
+        if msg.get_type() == 'SCALED_PRESSURE2' and msg.press_abs != 0:
+            z = msg.press_abs
     while target_yaw != 0:
         print(f'set_target_attitude: {target_yaw}')
         set_target_attitude(0, 0, target_yaw)
@@ -107,9 +160,18 @@ try:
         time.sleep(sleep)
 
         print(f'dive')
-        send_manual_control(0, 0, 0, 0)
-        time.sleep(2)
+        z_controller = PID()
+        t = time.time()
+        while time.time() - t < 5:
+            target_height = load_target_height()
+            z_controller.set_target_height(target_height)
+            z_controller.update(z)
+            print(f'target: {target_height} {os.linesep}' +
+                  f'current: {z} {os.linesep}' +
+                  f'output: {500 + z_controller.output}')
+            send_manual_control(0, 0, 500 - z_controller.output, 0)
         send_manual_control(0, 0, 500, 0)
+        print("PID end")
 
         for i in range(5):
             send_manual_control(x, y, z, r)
