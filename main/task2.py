@@ -6,12 +6,85 @@ import math
 import numpy as np
 from pymavlink import mavutil
 from pymavlink.quaternion import QuaternionBase  # Imports for attitude
+import threading
 
-Camera_topic = ".."
+# Need 9/24 pool test
+Time_to_left_corner = 5
+Time_to_Right_corner = 5
+Time_to_top_corner = 5
+# pool test
+Speed_translation = 400
+Speed_move_forward = 400
+
+# Set
+Task2_Camera_topic = ".."
+moving_right = True
+task2_finish = False
 
 
-def task2(direction, seconds):
+def task1():
+    return 1, 2
+
+
+# based on task1 return
+def move_to_top_left_corner(data):
+    while not data.detect:
+        if time.time() - boot_time < (Time_to_left_corner - seconds_from_task1):
+            send_manual_control(0, -Speed_translation, 0, 0)
+        elif (Time_to_left_corner - seconds_from_task1) < time.time() - boot_time < (
+                Time_to_left_corner - seconds_from_task1 + Time_to_top_corner):
+            send_manual_control(Speed_move_forward, 0, 0, 0)
+
+
+def wait_and_check_detect_flag(data, second):
+    for i in range(second*1000):
+        if data.detect:
+            break
+        else:
+            time.sleep(0.001)
+
+
+def meandeling(data):
+    while not data.detect:
+        send_manual_control(0,400,0,0)
+        wait_and_check_detect_flag()
+        if data.detect:
+            break
+        send_manual_control(400,0,0,0)
+        wait_and_check_detect_flag()
+        if data.detect:
+            break
+        send_manual_control(0,-400,0,0)
+        wait_and_check_detect_flag()
+        if data.detect:
+            break
+        send_manual_control(400,0,0,0)
+        wait_and_check_detect_flag()
+        if data.detect:
+            break
+
+
+
+# data.detected
+# data.detecting
+
+def motion(data):
+    move_to_top_left_corner(data)
+    meandeling(data)
+    while not task2_finish:
+        while data.detected or data.detecting:
+            if data.front_detect:
+                send_manual_control(Speed_move_forward, data.force, 0, 0)
+                data.detected = True
+            elif data.bottom_detect:
+                data.detected = True
+        else:
+
+
+
+def task2(x_seconds_from_task1, y_second_from_task1):
     # Create the connectionc
+    task2_start_time = time.time()
     global master, boot_time
     master = mavutil.mavlink_connection("/dev/ttyACM0", baud=115200)
     boot_time = time.time()
@@ -50,12 +123,12 @@ def task2(direction, seconds):
         master.motors_disarmed_wait()
         print('Disarmed!')
 
-    listener_to_camara()
+    listener_to_task2_camara()
 
 
-def listener_to_camara():
+def listener_to_task2_camara():
     rospy.init_node('listener', anonymous=True)
-    rospy.Subscriber(Camera_topic, String, motion)
+    rospy.Subscriber(Task2_Camera_topic, String, motion)
     rospy.spin()
 
 
@@ -108,23 +181,6 @@ def set_target_attitude(roll, pitch, yaw):
     )
 
 
-#data.front_blue_drum_detect
-#data.front_red_drum_detect
-#data.bottom_blue_drum_detect
-#data.bottom_red_drum_detect
-#data.bottom_blue_drum_area
-
-def motion(data):
-    if data.bottom_blue_drum_detect:
-        while data.bottom_blue_drum_area < 80:
-            send_manual_control(0, 0, 0, 0)
-
-
-
-def task1():
-    return 1,1
-
-
 if __name__ == '__main__':
-    direction, seconds = task1()
-    task2(direction,seconds)
+    seconds_from_task1 = task1()
+    task2(seconds_from_task1)  # seconds > 0 : move right, seconds < 0 : move left
