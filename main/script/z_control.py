@@ -16,12 +16,12 @@ class PID:
     def __init__(self):
         # Todo: testing & change to suitable value
         # PI > PID > PD > P
-        self.Kp = 10
-        self.Ki = 0.1
+        self.Kp = 100
+        self.Ki = 10
         self.Kd = 1
         self.max_output = 500
         # self.ITerm_max = 10
-        self.delta_time = 0.2  # 5Hz
+        self.delta_time = 1.4
 
         # init
         self.target_height = 0.0
@@ -72,15 +72,6 @@ def send_manual_control(x, y, z, r):
     )
 
 
-# test code
-def draw_data(_):
-    x.append(count)
-    y.append(z)
-    plt.cla()
-    plt.scatter(x, y)
-    plt.plot(x, y)
-
-
 def thread_function():
     global z, count
     while True:
@@ -93,6 +84,40 @@ def thread_function():
             print('Disarmed!')
 
 
+def set_target_depth(depth):
+    """ Sets the target depth while in depth-hold mode.
+
+    Uses https://mavlink.io/en/messages/common.html#SET_POSITION_TARGET_GLOBAL_INT
+
+    'depth' is technically an altitude, so set as negative meters below the surface
+        -> set_target_depth(-1.5) # sets target to 1.5m below the water surface.
+
+    """
+    master.mav.set_position_target_global_int_send(
+        int(1e3 * (time.time() - boot_time)),  # ms since boot
+        master.target_system, master.target_component,
+        coordinate_frame=mavutil.mavlink.MAV_FRAME_GLOBAL_INT,
+        type_mask=(  # ignore everything except z position
+                mavutil.mavlink.POSITION_TARGET_TYPEMASK_X_IGNORE |
+                mavutil.mavlink.POSITION_TARGET_TYPEMASK_Y_IGNORE |
+                # DON'T mavutil.mavlink.POSITION_TARGET_TYPEMASK_Z_IGNORE |
+                mavutil.mavlink.POSITION_TARGET_TYPEMASK_VX_IGNORE |
+                mavutil.mavlink.POSITION_TARGET_TYPEMASK_VY_IGNORE |
+                mavutil.mavlink.POSITION_TARGET_TYPEMASK_VZ_IGNORE |
+                mavutil.mavlink.POSITION_TARGET_TYPEMASK_AX_IGNORE |
+                mavutil.mavlink.POSITION_TARGET_TYPEMASK_AY_IGNORE |
+                mavutil.mavlink.POSITION_TARGET_TYPEMASK_AZ_IGNORE |
+                # DON'T mavutil.mavlink.POSITION_TARGET_TYPEMASK_FORCE_SET |
+                mavutil.mavlink.POSITION_TARGET_TYPEMASK_YAW_IGNORE |
+                mavutil.mavlink.POSITION_TARGET_TYPEMASK_YAW_RATE_IGNORE
+        ), lat_int=0, lon_int=0, alt=depth,  # (x, y WGS84 frame pos - not used), z [m]
+        vx=0, vy=0, vz=0,  # velocities in NED frame [m/s] (not used)
+        afx=0, afy=0, afz=0, yaw=0, yaw_rate=0
+        # accelerations in NED frame [N], yaw, yaw_rate
+        #  (all not supported yet, ignored in GCS Mavlink)
+    )
+
+
 # test code
 
 if __name__ == '__main__':
@@ -100,8 +125,8 @@ if __name__ == '__main__':
     # test code
     x, y = [], []
     count = 0
-    f = open('pressure_value', 'w')
-    writer = csv.writer(f)
+    #f = open('pressure_value', 'w')
+    #writer = csv.writer(f)
     # test code
 
     # Create the connection
@@ -117,42 +142,55 @@ if __name__ == '__main__':
     print("arm")
 
     # set the desired operating mode
-    DEPTH_HOLD = 'ALT_HOLD'
+    DEPTH_HOLD = 'STABILIZE'
     DEPTH_HOLD_MODE = master.mode_mapping()[DEPTH_HOLD]
     while not master.wait_heartbeat().custom_mode == DEPTH_HOLD_MODE:
         master.set_mode(DEPTH_HOLD)
-    print("set mode")
+    print("set STABILIZE")
 
     global z
     z = 0
     print("Starting Thread")
-    x = threading.Thread(target=thread_function, blocking=True)
+    x = threading.Thread(target=thread_function)
     x.start()
     time.sleep(0.5)
 
     z_controller = PID()
 
     ## start
-    while True:
-        try:
+    try:
+        t = time.time()
+        print("PID")
+        while time.time() - t < 20:
+
             target_height = load_target_height()
             z_controller.set_target_height(target_height)
             z_controller.update(z)
-            writer.writerow(z)
+            #writer.writerow(z)
 
             if z - target_height > 0:
-                print(f'should>500, output: {500 + z_controller.output}')
+                print(f'should>500, output: {500 - z_controller.output}')
             else:
-                print(f'should<500, output: {500 + z_controller.output}')
-            # send_manual_control(0, 0, 500 - z_controller.output, 0)
+                print(f'should<500, output: {500 - z_controller.output}')
+            send_manual_control(0, 0, 500 - z_controller.output, 0)
 
-        except KeyboardInterrupt:
-            # Disarm
-            # send_manual_control(0, 0, 1000, 0)  # wait 3 sec to disarm
-            f.close()
-            print("Floating up")
-            time.sleep(3)
-            master.arducopter_disarm()
-            master.motors_disarmed_wait()
-            print('Disarmed!')
-            f.close()
+        print("Floating up")
+        send_manual_control(0, 0, 1000, 0)  # wait 3 sec to disarm
+        time.sleep(3)
+        send_manual_control(0, 0, 500, 0)
+        master.arducopter_disarm()
+        master.motors_disarmed_wait()
+        print('Disarmed!')
+
+
+    except KeyboardInterrupt:
+        # Disarm
+        send_manual_control(0, 0, 1000, 0)  # wait 3 sec to disarm
+        #f.close()
+        print("Floating up")
+        time.sleep(3)
+        send_manual_control(0, 0, 500, 0)
+        master.arducopter_disarm()
+        master.motors_disarmed_wait()
+        print('Disarmed!')
+        #f.close()

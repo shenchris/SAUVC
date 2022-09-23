@@ -14,12 +14,12 @@ Time_to_Right_corner = 5
 Time_to_top_corner = 5
 # pool test
 Speed_translation = 400
+Speed_translation_bottom_CV = 150
 Speed_move_forward = 400
 
 # Set
 Task2_Camera_topic = ".."
-moving_right = True  # False mean moving_left
-task2_finish = False
+task2_finish = 0
 
 
 def task1():
@@ -41,11 +41,11 @@ def move_to_top_left_corner(data):
 
 # check detect_flag while moving
 def wait_and_check_detect_flag(data, second):
-    for i in range(second * 1000):
+    for i in range(second * 100):
         if data.front_detect or data.bottom_detect:
             break
         else:
-            time.sleep(0.001)
+            time.sleep(0.01)
 
 
 # after arrive top left corner, snake_motion to find drum, loop: right -> forward -> left -> forward
@@ -68,6 +68,7 @@ def snake_motion(data):
         if data.front_detect or data.bottom_detect:
             break
 
+
 # after snake_motion terminate by front camera detected
 # use front camera to locate and move forward until bottom camera detected
 # if both front and bottom detect don't detect, just move forward
@@ -80,6 +81,7 @@ def front_to_bottom(data):
         else:
             send_manual_control(Speed_move_forward, 0, 500, 0)
 
+def release():
 
 def motion(data):
     move_to_top_left_corner(data)
@@ -90,13 +92,24 @@ def motion(data):
     while not task2_finish:
         # first move : right
         losing_detect = False
-        while True:
+        while losing_detect < 120:
             if data.bottom_detect:
-                send_manual_control(data.bottom_x_force, Speed_translation, 500, 0)
-            elif data.front_detect: # should not happen
-                send_manual_control(Speed_move_forward, data.bottom_y_force, 500, 0)
+                losing_detect = 0
+                if data.type_of_drum == 1:
+                    if data.can_sink:
+                        if data.can_release:
+                            release()
+                        else:
+                            send_manual_control(data.bottom_x_force, data.bottom_y_force, 400, 0)
+                    else:
+                        send_manual_control(data.bottom_x_force, data.bottom_y_force, 500, 0)
+                elif data.type_of_drum == 2:
+                    send_manual_control(data.bottom_x_force, Speed_translation_bottom_CV, 500, 0)
+            elif data.front_detect:  # should not happen
+                send_manual_control(Speed_move_forward, data.front_y_force, 500, 0)
             else:
-                send_manual_control(Speed_move_forward, data.front_detect, 500, 0)
+                send_manual_control(Speed_move_forward, Speed_translation_bottom_CV, 500, 0)
+                losing_detect += 1
 
     print("Task2 finished, floating up")
     send_manual_control(0, 0, 1000, 0)
