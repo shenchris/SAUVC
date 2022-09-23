@@ -125,17 +125,24 @@ if __name__ == '__main__':
     z_controller = PID()
 
     ## start
+    print("dive down")
+    send_manual_control(0, 0, 200, 0)  # wait 3 sec to disarm
+    time.sleep(2)
+    send_manual_control(0, 0, 500, 0)
+    time.sleep(0.5)
+    print("start")
     while True:
         try:
             target_height = load_target_acc()
             z_controller.set_target_height(target_height)
             z_controller.update(z)
 
+            print(z_controller.output)
             send_manual_control(z_controller.output, 600, 500, 0)
 
         except KeyboardInterrupt:
             # Disarm
-            # send_manual_control(0, 0, 1000, 0)  # wait 3 sec to disarm
+            send_manual_control(0, 0, 1000, 0)  # wait 3 sec to disarm
             f.close()
             print("Floating up")
             time.sleep(3)
