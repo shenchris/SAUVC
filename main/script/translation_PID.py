@@ -6,9 +6,8 @@ from pymavlink import mavutil
 from pymavlink.quaternion import QuaternionBase
 import csv
 
-
-def load_target_height():
-    return 1050
+def load_target_acc():
+    return 0
 
 
 class PID:
@@ -72,21 +71,14 @@ def send_manual_control(x, y, z, r):
     )
 
 
-# test code
-def draw_data(_):
-    x.append(count)
-    y.append(z)
-    plt.cla()
-    plt.scatter(x, y)
-    plt.plot(x, y)
 
 
 def thread_function():
     global z, count
     while True:
         try:
-            z = master.recv_match(type='SCALED_PRESSURE2', blocking=True).to_dict()["press_abs"]
-            count += 1
+            z = master.recv_match(type='SCALED_IMU', blocking=True).to_dict()["yacc"]
+            print(f'yacc: {z}')
         except KeyboardInterrupt:
             master.arducopter_disarm()
             master.motors_disarmed_wait()
@@ -135,16 +127,11 @@ if __name__ == '__main__':
     ## start
     while True:
         try:
-            target_height = load_target_height()
+            target_height = load_target_acc()
             z_controller.set_target_height(target_height)
             z_controller.update(z)
-            writer.writerow(z)
 
-            if z - target_height > 0:
-                print(f'should>500, output: {500 + z_controller.output}')
-            else:
-                print(f'should<500, output: {500 + z_controller.output}')
-            # send_manual_control(0, 0, 500 - z_controller.output, 0)
+            send_manual_control(z_controller.output, 600, 500, 0)
 
         except KeyboardInterrupt:
             # Disarm

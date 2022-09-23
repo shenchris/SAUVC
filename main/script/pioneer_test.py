@@ -6,7 +6,6 @@ from pymavlink import mavutil
 from pymavlink.quaternion import QuaternionBase
 import csv
 
-
 def load_target_height():
     return 1050
 
@@ -144,11 +143,11 @@ if __name__ == '__main__':
                 print(f'should>500, output: {500 + z_controller.output}')
             else:
                 print(f'should<500, output: {500 + z_controller.output}')
-            # send_manual_control(0, 0, 500 - z_controller.output, 0)
+            #send_manual_control(0, 0, 500 - z_controller.output, 0)
 
         except KeyboardInterrupt:
             # Disarm
-            # send_manual_control(0, 0, 1000, 0)  # wait 3 sec to disarm
+            #send_manual_control(0, 0, 1000, 0)  # wait 3 sec to disarm
             f.close()
             print("Floating up")
             time.sleep(3)
