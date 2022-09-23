@@ -5,8 +5,9 @@ import time
 import math
 from pymavlink import mavutil
 from pymavlink.quaternion import QuaternionBase  # Imports for attitude
+# import instruction_gate.msg
 
-Camera_topic = ""
+Camera_topic = "gate_detection/instruction"
 Force_foward = 500
 
 def main():
@@ -54,7 +55,7 @@ def main():
 
 def listener_to_camara():
     rospy.init_node('listener', anonymous=True)
-    rospy.Subscriber(Camera_topic, String, motion)
+    rospy.Subscriber(Camera_topic, instruction_gate, motion)
     rospy.spin()
 
 
@@ -108,16 +109,22 @@ def set_target_attitude(roll, pitch, yaw):
 
 
 def motion(data):
-    if not data.gate_pass:
-        send_manual_control(Force_foward, data.force, 0, 0)
-    else:
-        # Disarm
-        time.sleep(3)
-        master.arducopter_disarm()
-        print("Waiting for the vehicle to disarm")
-        # Wait for disarm
-        master.motors_disarmed_wait()
-        print('Disarmed!')
+    while True:
+        try:
+            if not data.pass_yet:
+                send_manual_control(Force_foward, data.force, 0, 0)
+            else:
+                # Disarm
+                time.sleep(3)
+                master.arducopter_disarm()
+                print("Waiting for the vehicle to disarm")
+                # Wait for disarm
+                master.motors_disarmed_wait()
+                print('Disarmed!')
+        except KeyboardInterrupt:
+            master.arducopter_disarm()
+            master.motors_disarmed_wait()
+            print('Disarmed!')
 
 
 if __name__ == '__main__':
